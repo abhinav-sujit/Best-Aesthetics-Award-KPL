@@ -72,6 +72,31 @@ async function getEmployeeByUsername(username) {
     return employees.find(emp => emp.username.toLowerCase() === username.toLowerCase());
 }
 
+// Fetch voting dates (with caching)
+let votingDatesCache = null;
+
+async function loadVotingDates() {
+    if (votingDatesCache) {
+        return votingDatesCache;
+    }
+
+    try {
+        const result = await getDates();
+        if (result.success && result.dates) {
+            votingDatesCache = result.dates;
+            return result.dates;
+        }
+        return [];
+    } catch (error) {
+        console.error('Failed to load voting dates:', error);
+        return [];
+    }
+}
+
+function clearVotingDatesCache() {
+    votingDatesCache = null;
+}
+
 // Clear employees cache (call after user management changes)
 function clearEmployeesCache() {
     employeesCache = null;

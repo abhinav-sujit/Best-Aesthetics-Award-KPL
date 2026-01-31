@@ -130,8 +130,12 @@ function setupEventListeners() {
     adminLogoutBtn.addEventListener('click', handleLogout);
 
     // Voting
-    voteDate.addEventListener('change', updateVotingUI);
-    nullVoteBtn.addEventListener('click', handleNullVote);
+    voteDate.addEventListener('change', async () => {
+        await updateVotingUI();
+    });
+    nullVoteBtn.addEventListener('click', async () => {
+        await handleNullVote();
+    });
 
     // Admin
     adminDate.addEventListener('change', updateAdminResults);
@@ -316,17 +320,22 @@ function switchTab(tab, section) {
 }
 
 // Update voting UI based on selected date
-function updateVotingUI() {
+async function updateVotingUI() {
     if (!currentUser) return;
 
     const selectedDate = voteDate.value;
-    const hasVoted = hasUserVoted(currentUser.id, selectedDate);
+    const hasVoted = await hasUserVoted(currentUser.id, selectedDate);
 
     if (hasVoted) {
-        const vote = getUserVote(currentUser.id, selectedDate);
-        const votedForName = vote.votedFor === null
-            ? 'NULL Vote (no one selected)'
-            : getEmployeeById(vote.votedFor).name;
+        const vote = await getUserVote(currentUser.id, selectedDate);
+
+        let votedForName;
+        if (vote.votedFor === null || vote.isNullVote) {
+            votedForName = 'NULL Vote (no one selected)';
+        } else {
+            const employee = await getEmployeeById(vote.votedFor);
+            votedForName = employee ? employee.name : 'Unknown User';
+        }
 
         voteStatus.innerHTML = `<strong>You have already voted for this date.</strong><br>Your vote: <strong>${votedForName}</strong>`;
         voteStatus.className = 'vote-status voted';
@@ -335,15 +344,18 @@ function updateVotingUI() {
         voteStatus.innerHTML = '<strong>You have not voted for this date yet.</strong> Select someone below to cast your vote.';
         voteStatus.className = 'vote-status not-voted';
         votingOptions.style.display = 'block';
-        renderCandidates();
+        await renderCandidates();
     }
 }
 
 // Render candidate buttons
-function renderCandidates() {
+async function renderCandidates() {
     candidatesList.innerHTML = '';
 
-    for (const emp of EMPLOYEES) {
+    // Load employees from API
+    const employees = await loadEmployees();
+
+    for (const emp of employees) {
         const btn = document.createElement('button');
         btn.className = 'candidate-btn';
         if (emp.id === currentUser.id) {
@@ -358,42 +370,50 @@ function renderCandidates() {
 }
 
 // Handle vote for a candidate
-function handleVote(candidateId) {
+async function handleVote(candidateId) {
     const selectedDate = voteDate.value;
-    const candidate = getEmployeeById(candidateId);
+    const candidate = await getEmployeeById(candidateId);
 
     const confirmMsg = candidateId === currentUser.id
-        ? `Are you sure you want to vote for yourself?\n\nThis vote CANNOT be changed once submitted.`
-        : `Are you sure you want to vote for ${candidate.name}?\n\nThis vote CANNOT be changed once submitted.`;
+        ? `Are you sure you want to vote for yourself? This vote cannot be changed later.`
+        : `Are you sure you want to vote for ${candidate.name}? This vote cannot be changed later.`;
 
     if (confirm(confirmMsg)) {
-        const result = castVote(currentUser.id, selectedDate, candidateId);
-        if (result.success) {
-            alert('Vote cast successfully!');
-            updateVotingUI();
-            updateDashboard();
-            updateProgressDisplay();
-        } else {
-            alert(result.message);
+        try {
+            const result = await castVote(currentUser.id, selectedDate, candidateId);
+            if (result.success) {
+                alert('Vote cast successfully!');
+                await updateVotingUI();
+                await updateDashboard();
+            } else {
+                alert(`Failed to cast vote: ${result.message}`);
+            }
+        } catch (error) {
+            console.error('Vote casting error:', error);
+            alert('An error occurred while casting your vote.');
         }
     }
 }
 
 // Handle NULL vote
-function handleNullVote() {
+async function handleNullVote() {
     const selectedDate = voteDate.value;
 
-    const confirmMsg = `Are you sure you want to cast a NULL vote?\n\nThis means you're choosing not to vote for anyone today.\nYour NULL vote will count as "having voted" but won't count toward anyone's total.\n\nThis vote CANNOT be changed once submitted.`;
+    const confirmMsg = `Are you sure you want to cast a NULL vote?\n\nThis means you're choosing not to vote for anyone today.\nYour NULL vote will count as "having voted" but won't count toward anyone's total.\n\nThis vote cannot be changed once submitted.`;
 
     if (confirm(confirmMsg)) {
-        const result = castVote(currentUser.id, selectedDate, null);
-        if (result.success) {
-            alert('NULL vote cast successfully!');
-            updateVotingUI();
-            updateDashboard();
-            updateProgressDisplay();
-        } else {
-            alert(result.message);
+        try {
+            const result = await castVote(currentUser.id, selectedDate, null);
+            if (result.success) {
+                alert('NULL vote cast successfully!');
+                await updateVotingUI();
+                await updateDashboard();
+            } else {
+                alert(`Failed to cast NULL vote: ${result.message}`);
+            }
+        } catch (error) {
+            console.error('NULL vote casting error:', error);
+            alert('An error occurred while casting your NULL vote.');
         }
     }
 }
@@ -425,30 +445,36 @@ function updateProgressDisplay() {
 }
 
 // Update dashboard with user's voting history
-function updateDashboard() {
+async function updateDashboard() {
     if (!currentUser) return;
 
     myVotesList.innerHTML = '';
 
-    for (const date of JANUARY_2026_DATES) {
-        const vote = getUserVote(currentUser.id, date);
+    // Load voting dates from API
+    const dates = await loadVotingDates();
+
+    for (const dateObj of dates) {
+        const dateStr = dateObj.date;
+        const vote = await getUserVote(currentUser.id, dateStr);
         const item = document.createElement('div');
         item.className = 'vote-item';
 
         let voteDisplay;
         if (vote) {
-            if (vote.votedFor === null) {
+            if (vote.votedFor === null || vote.isNullVote) {
                 voteDisplay = '<span class="vote-choice null-vote">NULL Vote</span>';
             } else {
-                const votedFor = getEmployeeById(vote.votedFor);
-                voteDisplay = `<span class="vote-choice">${votedFor.name}</span>`;
+                const votedFor = await getEmployeeById(vote.votedFor);
+                voteDisplay = votedFor
+                    ? `<span class="vote-choice">${votedFor.name}</span>`
+                    : '<span class="vote-choice">Unknown User</span>';
             }
         } else {
             voteDisplay = '<span class="no-vote">Not voted yet</span>';
         }
 
         item.innerHTML = `
-            <span class="vote-date">${formatDate(date)}</span>
+            <span class="vote-date">${formatDate(dateStr)}</span>
             ${voteDisplay}
         `;
         myVotesList.appendChild(item);
