@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Best Aesthetics Award - KlimArt Premiere League 2026</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <!-- LOGIN SECTION -->
+    <section id="login-section" class="section">
+        <div class="hero">
+            <div class="hero-content">
+                <div class="logo">KLIMART</div>
+                <div class="tagline">best aesthetics.<br><span class="red-accent">january 2026.</span></div>
+                <div class="subtitle">KlimArt Premiere League</div>
+
+                <!-- Employee Login Card -->
+                <div id="employee-login-card" class="login-card">
+                    <h2>Employee Login</h2>
+                    <form id="employee-login-form">
+                        <div class="form-group">
+                            <label for="employee-username">Username</label>
+                            <input type="text" id="employee-username" placeholder="Enter your username" required autocomplete="username">
+                        </div>
+                        <div class="form-group">
+                            <label for="employee-password">Password</label>
+                            <div class="password-wrapper">
+                                <input type="password" id="employee-password" placeholder="Enter your password" required autocomplete="current-password">
+                                <button type="button" class="toggle-password" data-target="employee-password">Show</button>
+                            </div>
+                        </div>
+                        <div id="employee-error" class="error-message" style="display: none;"></div>
+                        <button type="submit" class="btn btn-primary">Login</button>
+                    </form>
+                    <div class="divider-text">or</div>
+                    <button id="show-admin-login" class="btn btn-secondary">Admin Login</button>
+                </div>
+
+                <!-- Admin Login Card (hidden by default) -->
+                <div id="admin-login-card" class="login-card" style="display: none;">
+                    <h2>Admin Login</h2>
+                    <form id="admin-login-form">
+                        <div class="form-group">
+                            <label for="admin-username">Admin Username</label>
+                            <input type="text" id="admin-username" placeholder="Enter admin username" required autocomplete="username">
+                        </div>
+                        <div class="form-group">
+                            <label for="admin-password">Admin Password</label>
+                            <div class="password-wrapper">
+                                <input type="password" id="admin-password" placeholder="Enter admin password" required autocomplete="current-password">
+                                <button type="button" class="toggle-password" data-target="admin-password">Show</button>
+                            </div>
+                        </div>
+                        <div id="admin-error" class="error-message" style="display: none;"></div>
+                        <button type="submit" class="btn btn-primary btn-red">Admin Login</button>
+                    </form>
+                    <div class="divider-text">or</div>
+                    <button id="show-employee-login" class="btn btn-secondary">Back to Employee Login</button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- VOTING SECTION (Employee Dashboard) -->
+    <section id="voting-section" class="section hidden">
+        <div class="app-container">
+            <header class="app-header">
+                <div class="logo">KLIMART <span class="red-accent">Premiere League</span></div>
+                <div class="header-right">
+                    <span class="user-name">Welcome, <strong id="current-user-name"></strong></span>
+                    <button id="logout-btn" class="btn btn-logout btn-small">Logout</button>
+                </div>
+            </header>
+
+            <nav class="nav-tabs">
+                <button class="tab-btn active" data-tab="vote">Cast Vote</button>
+                <button class="tab-btn" data-tab="dashboard">My Dashboard</button>
+                <button class="tab-btn" data-tab="progress">Voting Progress</button>
+            </nav>
+
+            <div class="content">
+                <!-- Vote Tab -->
+                <div id="vote-tab" class="tab-content active">
+                    <div class="section-number">01</div>
+                    <div class="card">
+                        <h2>Cast Your Vote</h2>
+                        <p class="card-subtitle">Select a date and vote for the Best Aesthetics Award</p>
+
+                        <div class="form-group">
+                            <label for="vote-date">Select Date</label>
+                            <select id="vote-date">
+                                <!-- Days will be populated by JS -->
+                            </select>
+                        </div>
+
+                        <div id="vote-status" class="vote-status"></div>
+
+                        <div id="voting-options" class="voting-options">
+                            <h3>Who deserves the Best Aesthetics Award today?</h3>
+                            <div id="candidates-list" class="candidates-list">
+                                <!-- Candidates will be populated by JS -->
+                            </div>
+                            <div class="null-vote-option">
+                                <button id="null-vote-btn" class="btn btn-null">Cast NULL Vote</button>
+                                <p class="hint">Choose this if no one stood out today. NULL votes count as having voted but don't count toward anyone's total.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Dashboard Tab -->
+                <div id="dashboard-tab" class="tab-content">
+                    <div class="section-number">02</div>
+                    <div class="card">
+                        <h2>My Voting History</h2>
+                        <p class="card-subtitle">Your votes for each day in January 2026</p>
+                        <div id="my-votes-list" class="votes-list">
+                            <!-- User's votes will be populated by JS -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Progress Tab -->
+                <div id="progress-tab" class="tab-content">
+                    <div class="section-number">03</div>
+                    <div class="card">
+                        <h2>Daily Voting Progress</h2>
+                        <p class="card-subtitle">See how many people have voted for each day</p>
+                        <div id="progress-container" class="progress-container">
+                            <!-- Progress bars will be populated by JS -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <footer class="app-footer">
+                <p class="footer-text">KlimArt Premiere League - Best Aesthetics Award January 2026</p>
+            </footer>
+        </div>
+    </section>
+
+    <!-- ADMIN SECTION -->
+    <section id="admin-section" class="section hidden">
+        <div class="app-container">
+            <header class="app-header admin-header">
+                <div class="logo">KLIMART <span style="color: white;">KPL Admin</span></div>
+                <div class="header-right">
+                    <span class="user-name">Administrator</span>
+                    <button id="admin-logout-btn" class="btn btn-logout btn-small">Logout</button>
+                </div>
+            </header>
+
+            <nav class="nav-tabs">
+                <button class="tab-btn active" data-tab="admin-results">Daily Results</button>
+                <button class="tab-btn" data-tab="admin-standings">Overall Standings</button>
+                <button class="tab-btn" data-tab="admin-ties">Tie Resolution</button>
+                <button class="tab-btn" data-tab="admin-data">Data Management</button>
+            </nav>
+
+            <div class="content">
+                <!-- Results Tab -->
+                <div id="admin-results-tab" class="tab-content active">
+                    <div class="section-number">01</div>
+                    <div class="card">
+                        <h2>Daily Results</h2>
+                        <p class="card-subtitle">View Best Aesthetics Award vote counts for each day</p>
+
+                        <div class="form-group">
+                            <label for="admin-date">Select Date</label>
+                            <select id="admin-date">
+                                <!-- Days will be populated by JS -->
+                            </select>
+                        </div>
+                        <div id="admin-results" class="admin-results">
+                            <!-- Results will be populated by JS -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Standings Tab -->
+                <div id="admin-standings-tab" class="tab-content">
+                    <div class="section-number">02</div>
+                    <div class="card">
+                        <h2>Overall Standings</h2>
+                        <p class="card-subtitle">Total Best Aesthetics wins across all days</p>
+                        <div id="overall-standings" class="standings">
+                            <!-- Standings will be populated by JS -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tie Resolution Tab -->
+                <div id="admin-ties-tab" class="tab-content">
+                    <div class="section-number">03</div>
+                    <div class="card">
+                        <h2>Tie Resolution</h2>
+                        <p class="card-subtitle">Resolve ties by selecting a winner</p>
+                        <div id="tie-resolution" class="tie-resolution">
+                            <!-- Tie resolution UI will be populated by JS -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Data Management Tab -->
+                <div id="admin-data-tab" class="tab-content">
+                    <div class="section-number">04</div>
+                    <div class="card">
+                        <h2>Data Management</h2>
+                        <p class="card-subtitle">Export or reset voting data</p>
+
+                        <div class="highlight">
+                            <strong>Warning:</strong> Resetting data will permanently delete all votes. This action cannot be undone.
+                        </div>
+
+                        <div class="data-management">
+                            <button id="export-data-btn" class="btn btn-primary">Export Data (JSON)</button>
+                            <button id="reset-data-btn" class="btn btn-danger">Reset All Data</button>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <h2>Who Hasn't Voted</h2>
+                        <p class="card-subtitle">See who still needs to vote for each day</p>
+
+                        <div class="form-group">
+                            <label for="check-date">Select Date</label>
+                            <select id="check-date">
+                                <!-- Days will be populated by JS -->
+                            </select>
+                        </div>
+                        <div id="not-voted-list" class="votes-list">
+                            <!-- List will be populated by JS -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <footer class="app-footer">
+                <p class="footer-text">KlimArt Premiere League - Admin Panel - January 2026</p>
+            </footer>
+        </div>
+    </section>
+
+    <script src="js/data.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/storage.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
