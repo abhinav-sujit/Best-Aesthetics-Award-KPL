@@ -337,7 +337,8 @@ async function updateVotingUI() {
         if (vote.votedFor === null || vote.isNullVote) {
             votedForName = 'NULL Vote (no one selected)';
         } else {
-            const employee = await getEmployeeById(vote.votedFor);
+            // vote.votedFor is an object {id: X, name: 'Name'}, extract the ID
+            const employee = getEmployeeById(vote.votedFor.id);
             votedForName = employee ? employee.name : 'Unknown User';
         }
 
@@ -356,8 +357,8 @@ async function updateVotingUI() {
 async function renderCandidates() {
     candidatesList.innerHTML = '';
 
-    // Load employees from API
-    const employees = await loadEmployees();
+    // Load employees from static list
+    const employees = loadEmployees();
 
     for (const emp of employees) {
         const btn = document.createElement('button');
@@ -430,18 +431,22 @@ async function updateProgressDisplay() {
     for (const dateObj of dates) {
         const dateStr = dateObj.date;
         const progress = await getVotingProgress(dateStr);
-        const isComplete = progress.voted === progress.total;
+
+        // Use static employee count if API returns 0
+        const total = progress.total > 0 ? progress.total : TOTAL_EMPLOYEES;
+        const percentage = total > 0 ? Math.round((progress.voted / total) * 100) : 0;
+        const isComplete = progress.voted === total;
 
         const item = document.createElement('div');
         item.className = 'progress-item';
         item.innerHTML = `
             <div class="progress-label">
                 <span>${formatDate(dateStr)}</span>
-                <span>${progress.voted}/${progress.total} votes</span>
+                <span>${progress.voted}/${total} votes</span>
             </div>
             <div class="progress-bar-bg">
-                <div class="progress-bar ${isComplete ? 'complete' : ''}" style="width: ${progress.percentage}%">
-                    ${progress.percentage}%
+                <div class="progress-bar ${isComplete ? 'complete' : ''}" style="width: ${percentage}%">
+                    ${percentage}%
                 </div>
             </div>
         `;
@@ -469,7 +474,8 @@ async function updateDashboard() {
             if (vote.votedFor === null || vote.isNullVote) {
                 voteDisplay = '<span class="vote-choice null-vote">NULL Vote</span>';
             } else {
-                const votedFor = await getEmployeeById(vote.votedFor);
+                // vote.votedFor is an object {id: X, name: 'Name'}, extract the ID
+                const votedFor = getEmployeeById(vote.votedFor.id);
                 voteDisplay = votedFor
                     ? `<span class="vote-choice">${votedFor.name}</span>`
                     : '<span class="vote-choice">Unknown User</span>';
@@ -494,7 +500,6 @@ async function updateAdminResults() {
     const unresolvedTiesData = await getUnresolvedTies();
     // For now, use empty object for resolutions - tie resolution feature needs separate work
     const resolutions = {};
-    const employees = await loadEmployees();
 
     adminResults.innerHTML = '';
 
@@ -502,7 +507,7 @@ async function updateAdminResults() {
     const summary = document.createElement('div');
     summary.className = 'result-summary';
     summary.innerHTML = `
-        <p><strong>Total Votes Cast:</strong> ${totalVotes}/${employees.length}</p>
+        <p><strong>Total Votes Cast:</strong> ${totalVotes}/${TOTAL_EMPLOYEES}</p>
         <p><strong>NULL Votes:</strong> ${nullVotes}</p>
         <p><strong>Actual Votes:</strong> ${totalVotes - nullVotes}</p>
     `;
@@ -637,13 +642,11 @@ async function updateTieResolution() {
 async function updateNotVotedList() {
     const selectedDate = checkDate.value;
     const progress = await getVotingProgress(selectedDate);
-    const employees = await loadEmployees();
 
     notVotedList.innerHTML = '';
 
-    // Get list of employees who haven't voted
-    const notVotedIds = progress.notVoted || [];
-    const notVoted = employees.filter(emp => notVotedIds.includes(emp.id));
+    // API already returns objects with {id, name}, use directly
+    const notVoted = progress.notVoted || [];
 
     if (notVoted.length === 0) {
         notVotedList.innerHTML = '<p style="color: #28a745; font-weight: 600;">Everyone has voted for this date!</p>';

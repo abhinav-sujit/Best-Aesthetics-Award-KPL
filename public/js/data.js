@@ -40,64 +40,63 @@ function formatDate(dateStr) {
     return date.toLocaleDateString('en-US', options);
 }
 
+// ==================== STATIC EMPLOYEE DATA ====================
+
+// Static employee list (18 employees from complete-reset.sql)
+const EMPLOYEES = [
+    { id: 2, name: 'Kavya', username: 'kavya' },
+    { id: 3, name: 'Ganesh', username: 'ganesh' },
+    { id: 4, name: 'Sahil', username: 'sahil' },
+    { id: 5, name: 'Prathiksha', username: 'prathiksha' },
+    { id: 6, name: 'Arpana', username: 'arpana' },
+    { id: 7, name: 'Hemanshu', username: 'hemanshu' },
+    { id: 8, name: 'Migom', username: 'migom' },
+    { id: 9, name: 'Nikita', username: 'nikita' },
+    { id: 10, name: 'Sam', username: 'sam' },
+    { id: 11, name: 'Satish', username: 'satish' },
+    { id: 12, name: 'Sakshi', username: 'sakshi' },
+    { id: 13, name: 'Sai Sidhardha', username: 'saisidhardha' },
+    { id: 14, name: 'Abhinav', username: 'abhinav' },
+    { id: 15, name: 'Shreya', username: 'shreya' },
+    { id: 16, name: 'Ramya', username: 'ramya' },
+    { id: 17, name: 'Chaitanya', username: 'chaitanya' },
+    { id: 18, name: 'Mrummayee', username: 'mrummayee' },
+    { id: 19, name: 'Mamatha', username: 'mamatha' }
+];
+
+const TOTAL_EMPLOYEES = 18;
+
 // ==================== API-BASED EMPLOYEE FUNCTIONS ====================
 
-// Get all employees from API (cached for session)
-let employeesCache = null;
-
-async function loadEmployees() {
-    if (employeesCache) {
-        return employeesCache;
-    }
-
-    try {
-        const result = await getCandidates();
-        employeesCache = result.candidates || [];
-        return employeesCache;
-    } catch (error) {
-        console.error('Failed to load employees:', error);
-        return [];
-    }
+// Get all employees (returns static list)
+function loadEmployees() {
+    return EMPLOYEES;
 }
 
-// Get employee by ID (async)
-async function getEmployeeById(id) {
-    const employees = await loadEmployees();
-    return employees.find(emp => emp.id === id);
+// Get employee by ID (synchronous)
+function getEmployeeById(id) {
+    return EMPLOYEES.find(emp => emp.id === id);
 }
 
-// Get employee by username (async)
-async function getEmployeeByUsername(username) {
-    const employees = await loadEmployees();
-    return employees.find(emp => emp.username.toLowerCase() === username.toLowerCase());
+// Get employee by username (synchronous)
+function getEmployeeByUsername(username) {
+    return EMPLOYEES.find(emp => emp.username.toLowerCase() === username.toLowerCase());
 }
 
-// Fetch voting dates (with caching)
-let votingDatesCache = null;
-
+// Fetch voting dates (with explicit sorting, no caching to avoid stale data)
 async function loadVotingDates() {
-    if (votingDatesCache) {
-        return votingDatesCache;
-    }
-
     try {
         const result = await getVotingDates();
         if (result.success && result.dates) {
-            votingDatesCache = result.dates;
-            return result.dates;
+            // Sort dates chronologically to ensure correct order
+            const sortedDates = result.dates.sort((a, b) => {
+                return new Date(a.date) - new Date(b.date);
+            });
+            return sortedDates;
         }
         return [];
     } catch (error) {
         console.error('Failed to load voting dates:', error);
         return [];
     }
-}
-
-function clearVotingDatesCache() {
-    votingDatesCache = null;
-}
-
-// Clear employees cache (call after user management changes)
-function clearEmployeesCache() {
-    employeesCache = null;
 }
