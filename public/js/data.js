@@ -51,8 +51,8 @@ async function loadEmployees() {
     }
 
     try {
-        const result = await getAllUsers();
-        employeesCache = result.users.filter(u => !u.isAdmin);
+        const result = await getCandidates();
+        employeesCache = result.candidates || [];
         return employeesCache;
     } catch (error) {
         console.error('Failed to load employees:', error);
