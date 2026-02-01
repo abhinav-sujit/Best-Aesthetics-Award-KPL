@@ -144,16 +144,8 @@ async function getOverallStandings() {
 
 // ==================== TIE RESOLUTION ====================
 
-// Get unresolved ties
-async function getUnresolvedTies() {
-    try {
-        const result = await getUnresolvedTies();
-        return result.unresolvedTies || [];
-    } catch (error) {
-        console.error('Error getting unresolved ties:', error);
-        return [];
-    }
-}
+// Note: getUnresolvedTies() is now imported directly from api.js
+// Removed wrapper function to avoid infinite recursion
 
 // Resolve a tie
 async function resolveTie(date, winnerId) {
@@ -170,10 +162,10 @@ async function checkForTies(date) {
     try {
         const result = await getResults(date);
         const winner = determineWinner(result.results);
-        return winner.isTie;
+        return { hasTie: winner.isTie, winners: winner.winners };
     } catch (error) {
         console.error('Error checking for ties:', error);
-        return false;
+        return { hasTie: false, winners: [] };
     }
 }
 

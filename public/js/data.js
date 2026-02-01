@@ -81,7 +81,7 @@ async function loadVotingDates() {
     }
 
     try {
-        const result = await getDates();
+        const result = await getVotingDates();
         if (result.success && result.dates) {
             votingDatesCache = result.dates;
             return result.dates;

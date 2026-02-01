@@ -138,8 +138,12 @@ function setupEventListeners() {
     });
 
     // Admin
-    adminDate.addEventListener('change', updateAdminResults);
-    checkDate.addEventListener('change', updateNotVotedList);
+    adminDate.addEventListener('change', async () => {
+        await updateAdminResults();
+    });
+    checkDate.addEventListener('change', async () => {
+        await updateNotVotedList();
+    });
     resetDataBtn.addEventListener('click', handleResetData);
     exportDataBtn.addEventListener('click', handleExportData);
 
@@ -419,19 +423,20 @@ async function handleNullVote() {
 }
 
 // Update progress display
-function updateProgressDisplay() {
+async function updateProgressDisplay() {
     progressContainer.innerHTML = '';
-    const allProgress = getAllVotingProgress();
+    const dates = await loadVotingDates();
 
-    for (const date of JANUARY_2026_DATES) {
-        const progress = allProgress[date];
+    for (const dateObj of dates) {
+        const dateStr = dateObj.date;
+        const progress = await getVotingProgress(dateStr);
         const isComplete = progress.voted === progress.total;
 
         const item = document.createElement('div');
         item.className = 'progress-item';
         item.innerHTML = `
             <div class="progress-label">
-                <span>${formatDate(date)}</span>
+                <span>${formatDate(dateStr)}</span>
                 <span>${progress.voted}/${progress.total} votes</span>
             </div>
             <div class="progress-bar-bg">
@@ -482,11 +487,14 @@ async function updateDashboard() {
 }
 
 // Update admin results display
-function updateAdminResults() {
+async function updateAdminResults() {
     const selectedDate = adminDate.value;
-    const { results, nullVotes, totalVotes } = getResultsForDate(selectedDate);
-    const tieCheck = checkForTies(selectedDate);
-    const resolutions = getTieResolutions();
+    const { results, nullVotes, totalVotes } = await getResultsForDate(selectedDate);
+    const tieCheck = await checkForTies(selectedDate);
+    const unresolvedTiesData = await getUnresolvedTies();
+    // For now, use empty object for resolutions - tie resolution feature needs separate work
+    const resolutions = {};
+    const employees = await loadEmployees();
 
     adminResults.innerHTML = '';
 
@@ -494,7 +502,7 @@ function updateAdminResults() {
     const summary = document.createElement('div');
     summary.className = 'result-summary';
     summary.innerHTML = `
-        <p><strong>Total Votes Cast:</strong> ${totalVotes}/${EMPLOYEES.length}</p>
+        <p><strong>Total Votes Cast:</strong> ${totalVotes}/${employees.length}</p>
         <p><strong>NULL Votes:</strong> ${nullVotes}</p>
         <p><strong>Actual Votes:</strong> ${totalVotes - nullVotes}</p>
     `;
@@ -541,8 +549,8 @@ function updateAdminResults() {
 }
 
 // Update overall standings
-function updateOverallStandings() {
-    const standings = getOverallStandings();
+async function updateOverallStandings() {
+    const standings = await getOverallStandings();
     overallStandings.innerHTML = '';
 
     let rank = 0;
@@ -581,8 +589,9 @@ function updateOverallStandings() {
 }
 
 // Update tie resolution UI
-function updateTieResolution() {
-    const unresolvedTies = getUnresolvedTies();
+async function updateTieResolution() {
+    const unresolvedTiesData = await getUnresolvedTies();
+    const unresolvedTies = unresolvedTiesData.unresolvedTies || [];
     tieResolution.innerHTML = '';
 
     if (unresolvedTies.length === 0) {
@@ -609,30 +618,32 @@ function updateTieResolution() {
 
     // Add click handlers for tie resolution
     document.querySelectorAll('.tie-candidate-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
+        btn.addEventListener('click', async () => {
             const date = btn.dataset.date;
             const winnerId = parseInt(btn.dataset.id);
-            const winner = getEmployeeById(winnerId);
+            const winner = await getEmployeeById(winnerId);
 
             if (confirm(`Are you sure you want to declare ${winner.name} as the winner for ${formatDate(date)}?\n\nThis action cannot be undone.`)) {
-                resolveTie(date, winnerId);
-                updateTieResolution();
-                updateOverallStandings();
-                updateAdminResults();
+                await resolveTie(date, winnerId);
+                await updateTieResolution();
+                await updateOverallStandings();
+                await updateAdminResults();
             }
         });
     });
 }
 
 // Update who hasn't voted list
-function updateNotVotedList() {
+async function updateNotVotedList() {
     const selectedDate = checkDate.value;
-    const dateVotes = getVotesForDate(selectedDate);
-    const votedIds = Object.keys(dateVotes).map(id => parseInt(id));
+    const progress = await getVotingProgress(selectedDate);
+    const employees = await loadEmployees();
 
     notVotedList.innerHTML = '';
 
-    const notVoted = EMPLOYEES.filter(emp => !votedIds.includes(emp.id));
+    // Get list of employees who haven't voted
+    const notVotedIds = progress.notVoted || [];
+    const notVoted = employees.filter(emp => notVotedIds.includes(emp.id));
 
     if (notVoted.length === 0) {
         notVotedList.innerHTML = '<p style="color: #28a745; font-weight: 600;">Everyone has voted for this date!</p>';
