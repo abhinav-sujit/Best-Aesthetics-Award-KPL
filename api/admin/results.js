@@ -78,6 +78,12 @@ module.exports = async (req, res) => {
           [date]
         );
 
+        // Check if tie was resolved
+        const tieResolutionResult = await query(
+          `SELECT winner_id FROM tie_resolutions WHERE voting_date = $1`,
+          [date]
+        );
+
         const results = voteResults.rows.map(row => ({
           id: row.id,
           name: row.name,
@@ -91,7 +97,10 @@ module.exports = async (req, res) => {
           nullVotes: parseInt(nullVoteResult.rows[0].count),
           totalVotes: parseInt(totalVotesResult.rows[0].count),
           totalEmployees: parseInt(totalEmployeesResult.rows[0].count),
-          notVoted: notVotedResult.rows
+          notVoted: notVotedResult.rows,
+          tieResolution: tieResolutionResult.rows.length > 0
+            ? { winnerId: tieResolutionResult.rows[0].winner_id }
+            : null
         });
 
       } catch (error) {
