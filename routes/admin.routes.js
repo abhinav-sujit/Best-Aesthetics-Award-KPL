@@ -315,76 +315,6 @@ router.get('/standings', asyncHandler(async (req, res) => {
     `SELECT id, name FROM users WHERE is_admin = FALSE ORDER BY name`
   );
 
-  // Get daily winners for each date (includes dates with ties)
-  const naturalWinnersResult = await query(
-    `SELECT v.voting_date, v.voted_for_id as winner_id,
-            COUNT(*) as votes,
-            RANK() OVER (PARTITION BY v.voting_date ORDER BY COUNT(*) DESC) as rank
-     FROM votes v
-     WHERE v.is_null_vote = FALSE
-     GROUP BY v.voting_date, v.voted_for_id`
-  );
-
-  // Get tie resolutions
-  const tieResolutionsResult = await query(
-    `SELECT voting_date, winner_id FROM tie_resolutions`
-  );
-
-  // Build a map of dates -> winner_ids
-  const dateWinners = {};
-
-  // First, add natural winners (rank = 1, only if no tie)
-  const dateRankCounts = {};
-  naturalWinnersResult.rows.forEach(row => {
-    const date = row.voting_date.toISOString().split('T')[0];
-    if (!dateRankCounts[date]) {
-      dateRankCounts[date] = {};
-    }
-    if (row.rank === 1) {
-      if (!dateRankCounts[date].count) {
-        dateRankCounts[date].count = 0;
-        dateRankCounts[date].winners = [];
-      }
-      dateRankCounts[date].count++;
-      dateRankCounts[date].winners.push(row.winner_id);
-    }
-  });
-
-  // Add natural winners only if there's exactly 1 rank-1 winner (no tie)
-  Object.keys(dateRankCounts).forEach(date => {
-    if (dateRankCounts[date].count === 1) {
-      dateWinners[date] = dateRankCounts[date].winners[0];
-    }
-  });
-
-  // Tie resolutions override natural winners
-  tieResolutionsResult.rows.forEach(row => {
-    const date = row.voting_date.toISOString().split('T')[0];
-    dateWinners[date] = row.winner_id;
-  });
-
-  // Count wins per employee
-  const winCounts = {};
-  employeesResult.rows.forEach(emp => {
-    winCounts[emp.id] = 0;
-  });
-
-  Object.values(dateWinners).forEach(winnerId => {
-    if (winCounts[winnerId] !== undefined) {
-      winCounts[winnerId]++;
-    }
-  });
-
-  // Build standings array
-  const standings = employeesResult.rows.map(emp => ({
-    id: emp.id,
-    name: emp.name,
-    wins: winCounts[emp.id]
-  })).sort((a, b) => {
-    if (b.wins !== a.wins) return b.wins - a.wins;
-    return a.name.localeCompare(b.name);
-  });
-
   // Get daily winners with dates (natural + tie resolutions)
   const dailyWinnersResult = await query(
     `WITH daily_winners AS (
@@ -421,6 +351,28 @@ router.get('/standings', asyncHandler(async (req, res) => {
      ORDER BY voting_date DESC`
   );
 
+  // Count wins directly from dailyWinnersResult (matches Daily Winners table)
+  const winCounts = {};
+  employeesResult.rows.forEach(emp => {
+    winCounts[emp.id] = 0;
+  });
+
+  dailyWinnersResult.rows.forEach(winner => {
+    if (winCounts[winner.winner_id] !== undefined) {
+      winCounts[winner.winner_id]++;
+    }
+  });
+
+  // Build standings array sorted by wins (descending), then name (ascending)
+  const standings = employeesResult.rows.map(emp => ({
+    id: emp.id,
+    name: emp.name,
+    wins: winCounts[emp.id]
+  })).sort((a, b) => {
+    if (b.wins !== a.wins) return b.wins - a.wins;
+    return a.name.localeCompare(b.name);
+  });
+
   // Get total votes per employee
   const totalVotesResult = await query(
     `SELECT
@@ -432,8 +384,6 @@ router.get('/standings', asyncHandler(async (req, res) => {
      WHERE u.is_admin = FALSE
      GROUP BY u.id, u.name`
   );
-
-  // standings array is already built above
 
   return res.status(200).json({
     success: true,
