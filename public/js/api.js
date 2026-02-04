@@ -151,6 +151,11 @@ async function getAllUsers() {
     return await apiCall('/admin/users');
 }
 
+// Get candidates (employees available for voting) - PUBLIC endpoint for authenticated users
+async function getCandidates() {
+    return await apiCall('/votes/candidates');
+}
+
 async function createUser(userData) {
     return await apiCall('/admin/users', {
         method: 'POST',
