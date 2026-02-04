@@ -235,6 +235,29 @@ async function exportDataAPI() {
     }
 }
 
+// ==================== PUBLIC STANDINGS ====================
+
+// Get overall standings (public endpoint for all users)
+async function getPublicStandings() {
+    try {
+        const response = await fetch('/api/votes/standings', {
+            headers: {
+                'Authorization': `Bearer ${getAuthToken()}`
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        return data;
+    } catch (error) {
+        console.error('Error getting public standings:', error);
+        throw error;
+    }
+}
+
 // ==================== LEGACY FUNCTIONS (NO-OP) ====================
 
 // These functions existed in localStorage version

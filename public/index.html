@@ -77,6 +77,7 @@
                 <button class="tab-btn active" data-tab="vote">Cast Vote</button>
                 <button class="tab-btn" data-tab="dashboard">My Dashboard</button>
                 <button class="tab-btn" data-tab="progress">Voting Progress</button>
+                <button class="tab-btn" data-tab="standings">Overall Standings</button>
             </nav>
 
             <div class="content">
@@ -129,6 +130,18 @@
                         <p class="card-subtitle">See how many people have voted for each day</p>
                         <div id="progress-container" class="progress-container">
                             <!-- Progress bars will be populated by JS -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Overall Standings Tab (Employee View) -->
+                <div id="standings-tab" class="tab-content">
+                    <div class="section-number">04</div>
+                    <div class="card">
+                        <h2>Overall Standings</h2>
+                        <p class="card-subtitle">Total Best Aesthetics wins across all days</p>
+                        <div id="employee-standings" class="standings">
+                            <!-- Standings will be populated by JS -->
                         </div>
                     </div>
                 </div>
