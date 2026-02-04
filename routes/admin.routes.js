@@ -279,6 +279,12 @@ router.get('/results/:date', asyncHandler(async (req, res) => {
     [date]
   );
 
+  // Check if tie was resolved
+  const tieResolutionResult = await query(
+    `SELECT winner_id FROM tie_resolutions WHERE voting_date = $1`,
+    [date]
+  );
+
   const results = voteResults.rows.map(row => ({
     id: row.id,
     name: row.name,
@@ -292,7 +298,10 @@ router.get('/results/:date', asyncHandler(async (req, res) => {
     nullVotes: parseInt(nullVoteResult.rows[0].count),
     totalVotes: parseInt(totalVotesResult.rows[0].count),
     totalEmployees: parseInt(totalEmployeesResult.rows[0].count),
-    notVoted: notVotedResult.rows
+    notVoted: notVotedResult.rows,
+    tieResolution: tieResolutionResult.rows.length > 0
+      ? { winnerId: tieResolutionResult.rows[0].winner_id }
+      : null
   });
 }));
 
@@ -358,6 +367,54 @@ router.get('/standings', asyncHandler(async (req, res) => {
      ORDER BY wins DESC, u.name ASC`
   );
 
+  // Get daily winners with dates (natural + tie resolutions)
+  const dailyWinnersResult = await query(
+    `WITH daily_winners AS (
+       SELECT
+         v.voting_date,
+         v.voted_for_id as winner_id,
+         COUNT(*) as votes,
+         RANK() OVER (PARTITION BY v.voting_date ORDER BY COUNT(*) DESC) as rank
+       FROM votes v
+       WHERE v.is_null_vote = FALSE
+       GROUP BY v.voting_date, v.voted_for_id
+     )
+     SELECT
+       dw.voting_date,
+       dw.winner_id,
+       u.name as winner_name
+     FROM daily_winners dw
+     JOIN users u ON dw.winner_id = u.id
+     WHERE dw.rank = 1
+     AND (
+       SELECT COUNT(*)
+       FROM daily_winners dw2
+       WHERE dw2.voting_date = dw.voting_date AND dw2.rank = 1
+     ) = 1
+
+     UNION ALL
+
+     SELECT
+       tr.voting_date,
+       tr.winner_id,
+       u.name as winner_name
+     FROM tie_resolutions tr
+     JOIN users u ON tr.winner_id = u.id
+     ORDER BY voting_date DESC`
+  );
+
+  // Get total votes per employee
+  const totalVotesResult = await query(
+    `SELECT
+       u.id,
+       u.name,
+       COUNT(v.id) as total_votes
+     FROM users u
+     LEFT JOIN votes v ON u.id = v.voted_for_id AND v.is_null_vote = FALSE
+     WHERE u.is_admin = FALSE
+     GROUP BY u.id, u.name`
+  );
+
   const standings = standingsResult.rows.map(row => ({
     id: row.id,
     name: row.name,
@@ -366,7 +423,17 @@ router.get('/standings', asyncHandler(async (req, res) => {
 
   return res.status(200).json({
     success: true,
-    standings: standings
+    standings: standings,
+    dailyWinners: dailyWinnersResult.rows.map(row => ({
+      date: row.voting_date.toISOString().split('T')[0],
+      winnerId: row.winner_id,
+      winnerName: row.winner_name
+    })),
+    totalVotes: totalVotesResult.rows.map(row => ({
+      id: row.id,
+      name: row.name,
+      totalVotes: parseInt(row.total_votes)
+    }))
   });
 }));
 

@@ -97,7 +97,8 @@ async function getResultsForDate(date) {
             totalEmployees: result.totalEmployees,
             winner: winner,
             isTie: winner.isTie,
-            notVoted: result.notVoted || []
+            notVoted: result.notVoted || [],
+            tieResolution: result.tieResolution || null
         };
     } catch (error) {
         console.error('Error getting results:', error);
@@ -108,7 +109,8 @@ async function getResultsForDate(date) {
             totalEmployees: 0,
             winner: null,
             isTie: false,
-            notVoted: []
+            notVoted: [],
+            tieResolution: null
         };
     }
 }
@@ -135,17 +137,25 @@ function determineWinner(results) {
 async function getOverallStandings() {
     try {
         const result = await getStandings();
-        return result.standings || [];
+        return result;
     } catch (error) {
         console.error('Error getting standings:', error);
-        return [];
+        return { standings: [], dailyWinners: [], totalVotes: [] };
     }
 }
 
 // ==================== TIE RESOLUTION ====================
 
-// Note: getUnresolvedTies() is now imported directly from api.js
-// Removed wrapper function to avoid infinite recursion
+// Get unresolved ties
+async function getUnresolvedTiesData() {
+    try {
+        const result = await getUnresolvedTies(); // API call from api.js
+        return result.unresolvedTies || [];
+    } catch (error) {
+        console.error('Error getting unresolved ties:', error);
+        return [];
+    }
+}
 
 // Resolve a tie
 async function resolveTie(date, winnerId) {
@@ -162,10 +172,53 @@ async function checkForTies(date) {
     try {
         const result = await getResults(date);
         const winner = determineWinner(result.results);
-        return { hasTie: winner.isTie, winners: winner.winners };
+        return {
+            hasTie: winner.isTie,
+            candidates: winner.winners
+        };
     } catch (error) {
         console.error('Error checking for ties:', error);
-        return { hasTie: false, winners: [] };
+        return { hasTie: false, candidates: [] };
+    }
+}
+
+// Get tie resolutions for all dates
+async function getTieResolutions() {
+    const resolutions = {};
+    const dates = [
+        "2026-01-02", "2026-01-05", "2026-01-06", "2026-01-07", "2026-01-08",
+        "2026-01-09", "2026-01-10", "2026-01-12", "2026-01-13", "2026-01-15",
+        "2026-01-16", "2026-01-19", "2026-01-20", "2026-01-21", "2026-01-22",
+        "2026-01-24", "2026-01-27", "2026-01-28", "2026-01-29", "2026-01-30",
+        "2026-01-31"
+    ];
+
+    for (const date of dates) {
+        try {
+            const result = await getResults(date);
+            if (result.tieResolution) {
+                resolutions[date] = result.tieResolution.winnerId;
+            }
+        } catch (error) {
+            console.error(`Error getting tie resolution for ${date}:`, error);
+        }
+    }
+
+    return resolutions;
+}
+
+// Get votes for a specific date
+async function getVotesForDate(date) {
+    try {
+        const result = await getResults(date);
+        return {
+            voted: result.totalVotes,
+            total: result.totalEmployees,
+            notVoted: result.notVoted || []
+        };
+    } catch (error) {
+        console.error('Error getting votes for date:', error);
+        return { voted: 0, total: 0, notVoted: [] };
     }
 }
 

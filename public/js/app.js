@@ -130,20 +130,12 @@ function setupEventListeners() {
     adminLogoutBtn.addEventListener('click', handleLogout);
 
     // Voting
-    voteDate.addEventListener('change', async () => {
-        await updateVotingUI();
-    });
-    nullVoteBtn.addEventListener('click', async () => {
-        await handleNullVote();
-    });
+    voteDate.addEventListener('change', updateVotingUI);
+    nullVoteBtn.addEventListener('click', handleNullVote);
 
     // Admin
-    adminDate.addEventListener('change', async () => {
-        await updateAdminResults();
-    });
-    checkDate.addEventListener('change', async () => {
-        await updateNotVotedList();
-    });
+    adminDate.addEventListener('change', updateAdminResults);
+    checkDate.addEventListener('change', updateNotVotedList);
     resetDataBtn.addEventListener('click', handleResetData);
     exportDataBtn.addEventListener('click', handleExportData);
 
@@ -332,15 +324,9 @@ async function updateVotingUI() {
 
     if (hasVoted) {
         const vote = await getUserVote(currentUser.id, selectedDate);
-
-        let votedForName;
-        if (vote.votedFor === null || vote.isNullVote) {
-            votedForName = 'NULL Vote (no one selected)';
-        } else {
-            // vote.votedFor is an object {id: X, name: 'Name'}, extract the ID
-            const employee = getEmployeeById(vote.votedFor.id);
-            votedForName = employee ? employee.name : 'Unknown User';
-        }
+        const votedForName = vote.votedFor === null
+            ? 'NULL Vote (no one selected)'
+            : (await getEmployeeById(vote.votedFor)).name;
 
         voteStatus.innerHTML = `<strong>You have already voted for this date.</strong><br>Your vote: <strong>${votedForName}</strong>`;
         voteStatus.className = 'vote-status voted';
@@ -357,8 +343,7 @@ async function updateVotingUI() {
 async function renderCandidates() {
     candidatesList.innerHTML = '';
 
-    // Load employees from static list
-    const employees = loadEmployees();
+    const employees = await loadEmployees();
 
     for (const emp of employees) {
         const btn = document.createElement('button');
@@ -380,22 +365,18 @@ async function handleVote(candidateId) {
     const candidate = await getEmployeeById(candidateId);
 
     const confirmMsg = candidateId === currentUser.id
-        ? `Are you sure you want to vote for yourself? This vote cannot be changed later.`
-        : `Are you sure you want to vote for ${candidate.name}? This vote cannot be changed later.`;
+        ? `Are you sure you want to vote for yourself?\n\nThis vote CANNOT be changed once submitted.`
+        : `Are you sure you want to vote for ${candidate.name}?\n\nThis vote CANNOT be changed once submitted.`;
 
     if (confirm(confirmMsg)) {
-        try {
-            const result = await castVote(currentUser.id, selectedDate, candidateId);
-            if (result.success) {
-                alert('Vote cast successfully!');
-                await updateVotingUI();
-                await updateDashboard();
-            } else {
-                alert(`Failed to cast vote: ${result.message}`);
-            }
-        } catch (error) {
-            console.error('Vote casting error:', error);
-            alert('An error occurred while casting your vote.');
+        const result = await castVote(currentUser.id, selectedDate, candidateId);
+        if (result.success) {
+            alert('Vote cast successfully!');
+            await updateVotingUI();
+            await updateDashboard();
+            await updateProgressDisplay();
+        } else {
+            alert(result.message);
         }
     }
 }
@@ -404,49 +385,40 @@ async function handleVote(candidateId) {
 async function handleNullVote() {
     const selectedDate = voteDate.value;
 
-    const confirmMsg = `Are you sure you want to cast a NULL vote?\n\nThis means you're choosing not to vote for anyone today.\nYour NULL vote will count as "having voted" but won't count toward anyone's total.\n\nThis vote cannot be changed once submitted.`;
+    const confirmMsg = `Are you sure you want to cast a NULL vote?\n\nThis means you're choosing not to vote for anyone today.\nYour NULL vote will count as "having voted" but won't count toward anyone's total.\n\nThis vote CANNOT be changed once submitted.`;
 
     if (confirm(confirmMsg)) {
-        try {
-            const result = await castVote(currentUser.id, selectedDate, null);
-            if (result.success) {
-                alert('NULL vote cast successfully!');
-                await updateVotingUI();
-                await updateDashboard();
-            } else {
-                alert(`Failed to cast NULL vote: ${result.message}`);
-            }
-        } catch (error) {
-            console.error('NULL vote casting error:', error);
-            alert('An error occurred while casting your NULL vote.');
+        const result = await castVote(currentUser.id, selectedDate, null);
+        if (result.success) {
+            alert('NULL vote cast successfully!');
+            await updateVotingUI();
+            await updateDashboard();
+            await updateProgressDisplay();
+        } else {
+            alert(result.message);
         }
     }
 }
 
 // Update progress display
-async function updateProgressDisplay() {
+function updateProgressDisplay() {
     progressContainer.innerHTML = '';
-    const dates = await loadVotingDates();
+    const allProgress = getAllVotingProgress();
 
-    for (const dateObj of dates) {
-        const dateStr = dateObj.date;
-        const progress = await getVotingProgress(dateStr);
-
-        // Use static employee count if API returns 0
-        const total = progress.total > 0 ? progress.total : TOTAL_EMPLOYEES;
-        const percentage = total > 0 ? Math.round((progress.voted / total) * 100) : 0;
-        const isComplete = progress.voted === total;
+    for (const date of JANUARY_2026_DATES) {
+        const progress = allProgress[date];
+        const isComplete = progress.voted === progress.total;
 
         const item = document.createElement('div');
         item.className = 'progress-item';
         item.innerHTML = `
             <div class="progress-label">
-                <span>${formatDate(dateStr)}</span>
-                <span>${progress.voted}/${total} votes</span>
+                <span>${formatDate(date)}</span>
+                <span>${progress.voted}/${progress.total} votes</span>
             </div>
             <div class="progress-bar-bg">
-                <div class="progress-bar ${isComplete ? 'complete' : ''}" style="width: ${percentage}%">
-                    ${percentage}%
+                <div class="progress-bar ${isComplete ? 'complete' : ''}" style="width: ${progress.percentage}%">
+                    ${progress.percentage}%
                 </div>
             </div>
         `;
@@ -455,37 +427,30 @@ async function updateProgressDisplay() {
 }
 
 // Update dashboard with user's voting history
-async function updateDashboard() {
+function updateDashboard() {
     if (!currentUser) return;
 
     myVotesList.innerHTML = '';
 
-    // Load voting dates from API
-    const dates = await loadVotingDates();
-
-    for (const dateObj of dates) {
-        const dateStr = dateObj.date;
-        const vote = await getUserVote(currentUser.id, dateStr);
+    for (const date of JANUARY_2026_DATES) {
+        const vote = getUserVote(currentUser.id, date);
         const item = document.createElement('div');
         item.className = 'vote-item';
 
         let voteDisplay;
         if (vote) {
-            if (vote.votedFor === null || vote.isNullVote) {
+            if (vote.votedFor === null) {
                 voteDisplay = '<span class="vote-choice null-vote">NULL Vote</span>';
             } else {
-                // vote.votedFor is an object {id: X, name: 'Name'}, extract the ID
-                const votedFor = getEmployeeById(vote.votedFor.id);
-                voteDisplay = votedFor
-                    ? `<span class="vote-choice">${votedFor.name}</span>`
-                    : '<span class="vote-choice">Unknown User</span>';
+                const votedFor = getEmployeeById(vote.votedFor);
+                voteDisplay = `<span class="vote-choice">${votedFor.name}</span>`;
             }
         } else {
             voteDisplay = '<span class="no-vote">Not voted yet</span>';
         }
 
         item.innerHTML = `
-            <span class="vote-date">${formatDate(dateStr)}</span>
+            <span class="vote-date">${formatDate(date)}</span>
             ${voteDisplay}
         `;
         myVotesList.appendChild(item);
@@ -495,11 +460,10 @@ async function updateDashboard() {
 // Update admin results display
 async function updateAdminResults() {
     const selectedDate = adminDate.value;
-    const { results, nullVotes, totalVotes } = await getResultsForDate(selectedDate);
+    const resultData = await getResultsForDate(selectedDate);
+    const { results, nullVotes, totalVotes, totalEmployees } = resultData;
     const tieCheck = await checkForTies(selectedDate);
-    const unresolvedTiesData = await getUnresolvedTies();
-    // For now, use empty object for resolutions - tie resolution feature needs separate work
-    const resolutions = {};
+    const tieResolution = resultData.tieResolution;
 
     adminResults.innerHTML = '';
 
@@ -507,7 +471,7 @@ async function updateAdminResults() {
     const summary = document.createElement('div');
     summary.className = 'result-summary';
     summary.innerHTML = `
-        <p><strong>Total Votes Cast:</strong> ${totalVotes}/${TOTAL_EMPLOYEES}</p>
+        <p><strong>Total Votes Cast:</strong> ${totalVotes}/${totalEmployees}</p>
         <p><strong>NULL Votes:</strong> ${nullVotes}</p>
         <p><strong>Actual Votes:</strong> ${totalVotes - nullVotes}</p>
     `;
@@ -533,10 +497,12 @@ async function updateAdminResults() {
 
         // Determine if this is a winner or tied
         const isTop = result.votes === results[0].votes && result.votes > 0;
-        const isResolved = resolutions[selectedDate] === result.id;
+        const isResolvedWinner = tieResolution && tieResolution.winnerId === result.id;
 
-        if (tieCheck.hasTie && isTop) {
-            item.className += isResolved ? ' winner' : ' tie';
+        if (isResolvedWinner) {
+            item.className += ' winner';
+        } else if (tieCheck.hasTie && isTop && !tieResolution) {
+            item.className += ' tie';
         } else if (isTop && !tieCheck.hasTie) {
             item.className += ' winner';
         }
@@ -544,8 +510,8 @@ async function updateAdminResults() {
         item.innerHTML = `
             <span class="result-name">
                 ${result.name}
-                ${isResolved ? ' (Tie Winner)' : ''}
-                ${tieCheck.hasTie && isTop && !isResolved ? ' (Tied)' : ''}
+                ${isResolvedWinner ? ' (Winner - Tie Resolved)' : ''}
+                ${tieCheck.hasTie && isTop && !tieResolution ? ' (Tied)' : ''}
             </span>
             <span class="result-votes">${result.votes} vote${result.votes !== 1 ? 's' : ''}</span>
         `;
@@ -555,48 +521,120 @@ async function updateAdminResults() {
 
 // Update overall standings
 async function updateOverallStandings() {
-    const standings = await getOverallStandings();
+    const data = await getOverallStandings();
+    const standings = data.standings || [];
+    const dailyWinners = data.dailyWinners || [];
+    const totalVotes = data.totalVotes || [];
+
     overallStandings.innerHTML = '';
 
-    let rank = 0;
-    let lastWins = -1;
+    // 1. OVERALL WINNER DISPLAY
+    if (standings.length > 0 && standings[0].wins > 0) {
+        const topWinner = standings[0];
+        const topVotes = totalVotes.find(tv => tv.id === topWinner.id);
+        const totalVotesReceived = topVotes ? topVotes.totalVotes : 0;
+        const employees = await loadEmployees();
+        const maxPossibleVotes = 21 * employees.length; // 21 voting dates
 
-    for (const standing of standings) {
-        if (standing.wins !== lastWins) {
-            rank++;
-            lastWins = standing.wins;
-        }
-
-        const item = document.createElement('div');
-        item.className = 'standing-item';
-
-        let rankClass = '';
-        if (rank === 1 && standing.wins > 0) rankClass = 'gold';
-        else if (rank === 2 && standing.wins > 0) rankClass = 'silver';
-        else if (rank === 3 && standing.wins > 0) rankClass = 'bronze';
-
-        item.innerHTML = `
-            <div class="standing-rank ${rankClass}">${standing.wins > 0 ? rank : '-'}</div>
-            <div class="standing-info">
-                <div class="standing-name">${standing.name}</div>
-                <div class="standing-wins">
-                    ${standing.wins} win${standing.wins !== 1 ? 's' : ''}
-                    ${standing.tiedWins > 0 ? ` (${standing.tiedWins} from tie resolution)` : ''}
+        const winnerCard = document.createElement('div');
+        winnerCard.className = 'overall-winner-card';
+        winnerCard.innerHTML = `
+            <div class="trophy-icon">🏆</div>
+            <h2 class="winner-title">OVERALL WINNER</h2>
+            <div class="winner-name">${topWinner.name}</div>
+            <div class="winner-stats">
+                <div class="stat-item">
+                    <span class="stat-label">Total Wins</span>
+                    <span class="stat-value">${topWinner.wins}</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Total Votes Received</span>
+                    <span class="stat-value">${totalVotesReceived} / ${maxPossibleVotes}</span>
                 </div>
             </div>
         `;
-        overallStandings.appendChild(item);
+        overallStandings.appendChild(winnerCard);
+
+        const separator = document.createElement('div');
+        separator.className = 'standings-separator';
+        overallStandings.appendChild(separator);
     }
 
-    if (standings.every(s => s.wins === 0)) {
-        overallStandings.innerHTML = '<p style="color: #666;">No winners declared yet.</p>';
+    // 2. DAILY WINNERS TABLE
+    const dailyTitle = document.createElement('h3');
+    dailyTitle.textContent = 'Daily Winners';
+    dailyTitle.style.marginTop = '30px';
+    dailyTitle.style.marginBottom = '15px';
+    overallStandings.appendChild(dailyTitle);
+
+    const dailyTable = document.createElement('div');
+    dailyTable.className = 'daily-winners-table';
+
+    if (dailyWinners.length === 0) {
+        dailyTable.innerHTML = '<p style="color: #666;">No daily winners yet.</p>';
+    } else {
+        for (const dw of dailyWinners) {
+            const item = document.createElement('div');
+            item.className = 'daily-winner-item';
+            const dateObj = new Date(dw.date + 'T00:00:00');
+            const formattedDate = dateObj.toLocaleDateString('en-US', {
+                weekday: 'short',
+                month: 'short',
+                day: 'numeric'
+            });
+            item.innerHTML = `
+                <span class="daily-winner-date">${formattedDate}</span>
+                <span class="daily-winner-name">${dw.winnerName}</span>
+            `;
+            dailyTable.appendChild(item);
+        }
     }
+    overallStandings.appendChild(dailyTable);
+
+    // 3. WINS SUMMARY TABLE
+    const summaryTitle = document.createElement('h3');
+    summaryTitle.textContent = 'Wins Summary';
+    summaryTitle.style.marginTop = '30px';
+    summaryTitle.style.marginBottom = '15px';
+    overallStandings.appendChild(summaryTitle);
+
+    const summaryTable = document.createElement('div');
+    summaryTable.className = 'wins-summary-table';
+
+    if (standings.every(s => s.wins === 0)) {
+        summaryTable.innerHTML = '<p style="color: #666;">No winners declared yet.</p>';
+    } else {
+        const withWins = standings.filter(s => s.wins > 0);
+
+        for (const standing of withWins) {
+            const item = document.createElement('div');
+            item.className = 'wins-summary-item';
+
+            const rank = withWins.findIndex(s => s.id === standing.id) + 1;
+            let rankClass = '';
+            if (rank === 1) rankClass = 'gold';
+            else if (rank === 2) rankClass = 'silver';
+            else if (rank === 3) rankClass = 'bronze';
+
+            const totalVotesForEmployee = totalVotes.find(tv => tv.id === standing.id);
+            const votes = totalVotesForEmployee ? totalVotesForEmployee.totalVotes : 0;
+
+            item.innerHTML = `
+                <div class="summary-rank ${rankClass}">${rank}</div>
+                <div class="summary-info">
+                    <span class="summary-name">${standing.name}</span>
+                    <span class="summary-stats">${standing.wins} win${standing.wins !== 1 ? 's' : ''} | ${votes} total votes</span>
+                </div>
+            `;
+            summaryTable.appendChild(item);
+        }
+    }
+    overallStandings.appendChild(summaryTable);
 }
 
 // Update tie resolution UI
 async function updateTieResolution() {
-    const unresolvedTiesData = await getUnresolvedTies();
-    const unresolvedTies = unresolvedTiesData.unresolvedTies || [];
+    const unresolvedTies = await getUnresolvedTiesData();
     tieResolution.innerHTML = '';
 
     if (unresolvedTies.length === 0) {
@@ -641,12 +679,10 @@ async function updateTieResolution() {
 // Update who hasn't voted list
 async function updateNotVotedList() {
     const selectedDate = checkDate.value;
-    const progress = await getVotingProgress(selectedDate);
+    const voteData = await getVotesForDate(selectedDate);
+    const notVoted = voteData.notVoted || [];
 
     notVotedList.innerHTML = '';
-
-    // API already returns objects with {id, name}, use directly
-    const notVoted = progress.notVoted || [];
 
     if (notVoted.length === 0) {
         notVotedList.innerHTML = '<p style="color: #28a745; font-weight: 600;">Everyone has voted for this date!</p>';
@@ -655,11 +691,11 @@ async function updateNotVotedList() {
 
     notVotedList.innerHTML = `<p style="margin-bottom: 15px;"><strong>${notVoted.length}</strong> people haven't voted yet:</p>`;
 
-    for (const emp of notVoted) {
+    for (const person of notVoted) {
         const item = document.createElement('div');
         item.className = 'vote-item';
         item.innerHTML = `
-            <span class="vote-date">${emp.name}</span>
+            <span class="vote-date">${person.name}</span>
             <span class="no-vote">Not voted</span>
         `;
         notVotedList.appendChild(item);
@@ -686,8 +722,8 @@ function handleResetData() {
 }
 
 // Handle data export
-function handleExportData() {
-    const data = exportData();
+async function handleExportData() {
+    const data = await exportDataAPI();
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
 
