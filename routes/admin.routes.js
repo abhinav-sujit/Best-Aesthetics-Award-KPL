@@ -310,62 +310,80 @@ router.get('/results/:date', asyncHandler(async (req, res) => {
  * Get overall standings/rankings
  */
 router.get('/standings', asyncHandler(async (req, res) => {
-  // Get winners from each date (including tie resolutions)
-  const standingsResult = await query(
-    `WITH daily_winners AS (
-       -- Get natural winners (highest votes without ties)
-       SELECT
-         voting_date,
-         voted_for_id as winner_id
-       FROM votes
-       WHERE voted_for_id IS NOT NULL
-       GROUP BY voting_date, voted_for_id
-       HAVING COUNT(*) = (
-         SELECT MAX(vote_count)
-         FROM (
-           SELECT COUNT(*) as vote_count
-           FROM votes
-           WHERE voting_date = votes.voting_date
-           AND voted_for_id IS NOT NULL
-           GROUP BY voted_for_id
-         ) AS counts
-       )
-       AND (
-         SELECT COUNT(DISTINCT voted_for_id)
-         FROM votes
-         WHERE voting_date = votes.voting_date
-         AND voted_for_id IS NOT NULL
-         GROUP BY voted_for_id
-         HAVING COUNT(*) = (
-           SELECT MAX(vote_count)
-           FROM (
-             SELECT COUNT(*) as vote_count
-             FROM votes v2
-             WHERE v2.voting_date = votes.voting_date
-             AND v2.voted_for_id IS NOT NULL
-             GROUP BY v2.voted_for_id
-           ) AS counts2
-         )
-       ) = 1
-
-       UNION ALL
-
-       -- Get tie resolution winners
-       SELECT
-         voting_date,
-         winner_id
-       FROM tie_resolutions
-     )
-     SELECT
-       u.id,
-       u.name,
-       COUNT(dw.winner_id) as wins
-     FROM users u
-     LEFT JOIN daily_winners dw ON u.id = dw.winner_id
-     WHERE u.is_admin = FALSE
-     GROUP BY u.id, u.name
-     ORDER BY wins DESC, u.name ASC`
+  // Get all employees
+  const employeesResult = await query(
+    `SELECT id, name FROM users WHERE is_admin = FALSE ORDER BY name`
   );
+
+  // Get daily winners for each date (includes dates with ties)
+  const naturalWinnersResult = await query(
+    `SELECT v.voting_date, v.voted_for_id as winner_id,
+            COUNT(*) as votes,
+            RANK() OVER (PARTITION BY v.voting_date ORDER BY COUNT(*) DESC) as rank
+     FROM votes v
+     WHERE v.is_null_vote = FALSE
+     GROUP BY v.voting_date, v.voted_for_id`
+  );
+
+  // Get tie resolutions
+  const tieResolutionsResult = await query(
+    `SELECT voting_date, winner_id FROM tie_resolutions`
+  );
+
+  // Build a map of dates -> winner_ids
+  const dateWinners = {};
+
+  // First, add natural winners (rank = 1, only if no tie)
+  const dateRankCounts = {};
+  naturalWinnersResult.rows.forEach(row => {
+    const date = row.voting_date.toISOString().split('T')[0];
+    if (!dateRankCounts[date]) {
+      dateRankCounts[date] = {};
+    }
+    if (row.rank === 1) {
+      if (!dateRankCounts[date].count) {
+        dateRankCounts[date].count = 0;
+        dateRankCounts[date].winners = [];
+      }
+      dateRankCounts[date].count++;
+      dateRankCounts[date].winners.push(row.winner_id);
+    }
+  });
+
+  // Add natural winners only if there's exactly 1 rank-1 winner (no tie)
+  Object.keys(dateRankCounts).forEach(date => {
+    if (dateRankCounts[date].count === 1) {
+      dateWinners[date] = dateRankCounts[date].winners[0];
+    }
+  });
+
+  // Tie resolutions override natural winners
+  tieResolutionsResult.rows.forEach(row => {
+    const date = row.voting_date.toISOString().split('T')[0];
+    dateWinners[date] = row.winner_id;
+  });
+
+  // Count wins per employee
+  const winCounts = {};
+  employeesResult.rows.forEach(emp => {
+    winCounts[emp.id] = 0;
+  });
+
+  Object.values(dateWinners).forEach(winnerId => {
+    if (winCounts[winnerId] !== undefined) {
+      winCounts[winnerId]++;
+    }
+  });
+
+  // Build standings array
+  const standings = employeesResult.rows.map(emp => ({
+    id: emp.id,
+    name: emp.name,
+    wins: winCounts[emp.id]
+  })).sort((a, b) => {
+    if (b.wins !== a.wins) return b.wins - a.wins;
+    return a.name.localeCompare(b.name);
+  });
 
   // Get daily winners with dates (natural + tie resolutions)
   const dailyWinnersResult = await query(
@@ -415,11 +433,7 @@ router.get('/standings', asyncHandler(async (req, res) => {
      GROUP BY u.id, u.name`
   );
 
-  const standings = standingsResult.rows.map(row => ({
-    id: row.id,
-    name: row.name,
-    wins: parseInt(row.wins)
-  }));
+  // standings array is already built above
 
   return res.status(200).json({
     success: true,
