@@ -237,25 +237,10 @@ async function exportDataAPI() {
 
 // ==================== PUBLIC STANDINGS ====================
 
-// Get overall standings (public endpoint for all users)
+// Get overall standings (calls admin endpoint which is now accessible to all authenticated users)
 async function getPublicStandings() {
-    try {
-        const response = await fetch('/api/votes/standings', {
-            headers: {
-                'Authorization': `Bearer ${getAuthToken()}`
-            }
-        });
-
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const data = await response.json();
-        return data;
-    } catch (error) {
-        console.error('Error getting public standings:', error);
-        throw error;
-    }
+    // Reuse existing getStandings() which calls the admin endpoint
+    return await getStandings();
 }
 
 // ==================== LEGACY FUNCTIONS (NO-OP) ====================
