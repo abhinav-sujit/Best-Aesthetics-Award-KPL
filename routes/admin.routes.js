@@ -9,9 +9,9 @@ const router = express.Router();
 const { query } = require('../lib/db');
 const { authenticateUser, requireAdmin, asyncHandler } = require('../lib/middleware');
 
-// Apply authentication and admin middleware to all routes
+// Apply authentication to all routes
+// Note: requireAdmin is applied selectively to routes that need it
 router.use(authenticateUser);
-router.use(requireAdmin);
 
 // ============================================================================
 // USER MANAGEMENT
@@ -19,9 +19,9 @@ router.use(requireAdmin);
 
 /**
  * GET /api/admin/users
- * Get all users
+ * Get all users (admin only)
  */
-router.get('/users', asyncHandler(async (req, res) => {
+router.get('/users', requireAdmin, asyncHandler(async (req, res) => {
   const result = await query(
     `SELECT id, name, username, is_admin, created_at, updated_at
      FROM users
@@ -43,9 +43,9 @@ router.get('/users', asyncHandler(async (req, res) => {
 
 /**
  * POST /api/admin/users
- * Create new user
+ * Create new user (admin only)
  */
-router.post('/users', asyncHandler(async (req, res) => {
+router.post('/users', requireAdmin, asyncHandler(async (req, res) => {
   const { name, username, password, isAdmin } = req.body;
 
   // Validate input
@@ -90,9 +90,9 @@ router.post('/users', asyncHandler(async (req, res) => {
 
 /**
  * PUT /api/admin/users/:id
- * Update user
+ * Update user (admin only)
  */
-router.put('/users/:id', asyncHandler(async (req, res) => {
+router.put('/users/:id', requireAdmin, asyncHandler(async (req, res) => {
   const userId = parseInt(req.params.id);
 
   if (!userId) {
@@ -176,9 +176,9 @@ router.put('/users/:id', asyncHandler(async (req, res) => {
 
 /**
  * DELETE /api/admin/users/:id
- * Delete user
+ * Delete user (admin only)
  */
-router.delete('/users/:id', asyncHandler(async (req, res) => {
+router.delete('/users/:id', requireAdmin, asyncHandler(async (req, res) => {
   const userId = parseInt(req.params.id);
 
   if (!userId) {
@@ -220,9 +220,9 @@ router.delete('/users/:id', asyncHandler(async (req, res) => {
 
 /**
  * GET /api/admin/results/:date
- * Get voting results for a specific date
+ * Get voting results for a specific date (admin only)
  */
-router.get('/results/:date', asyncHandler(async (req, res) => {
+router.get('/results/:date', requireAdmin, asyncHandler(async (req, res) => {
   const { date } = req.params;
 
   if (!date) {
@@ -307,7 +307,7 @@ router.get('/results/:date', asyncHandler(async (req, res) => {
 
 /**
  * GET /api/admin/standings
- * Get overall standings/rankings
+ * Get overall standings/rankings (PUBLIC - all authenticated users)
  */
 router.get('/standings', asyncHandler(async (req, res) => {
   // Get all employees
@@ -403,9 +403,9 @@ router.get('/standings', asyncHandler(async (req, res) => {
 
 /**
  * GET /api/admin/progress/:dateOrAll
- * Get voting progress for specific date or all dates
+ * Get voting progress for specific date or all dates (admin only)
  */
-router.get('/progress/:dateOrAll', asyncHandler(async (req, res) => {
+router.get('/progress/:dateOrAll', requireAdmin, asyncHandler(async (req, res) => {
   const { dateOrAll } = req.params;
 
   // Get total employees
@@ -482,9 +482,9 @@ router.get('/progress/:dateOrAll', asyncHandler(async (req, res) => {
 
 /**
  * GET /api/admin/export
- * Export all voting data as JSON
+ * Export all voting data as JSON (admin only)
  */
-router.get('/export', asyncHandler(async (req, res) => {
+router.get('/export', requireAdmin, asyncHandler(async (req, res) => {
   // Get all votes with names
   const votesResult = await query(
     `SELECT
@@ -561,9 +561,9 @@ router.get('/export', asyncHandler(async (req, res) => {
 
 /**
  * GET /api/admin/ties/unresolved
- * Get unresolved ties
+ * Get unresolved ties (admin only)
  */
-router.get('/ties/unresolved', asyncHandler(async (req, res) => {
+router.get('/ties/unresolved', requireAdmin, asyncHandler(async (req, res) => {
   // Find dates with ties (multiple candidates with same highest vote count)
   const tiesResult = await query(
     `SELECT
@@ -619,9 +619,9 @@ router.get('/ties/unresolved', asyncHandler(async (req, res) => {
 
 /**
  * POST /api/admin/ties/resolve
- * Resolve a tie
+ * Resolve a tie (admin only)
  */
-router.post('/ties/resolve', asyncHandler(async (req, res) => {
+router.post('/ties/resolve', requireAdmin, asyncHandler(async (req, res) => {
   const { date, winnerId } = req.body;
 
   if (!date || !winnerId) {

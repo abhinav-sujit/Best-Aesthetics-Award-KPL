@@ -278,7 +278,7 @@ function showSection(section) {
 }
 
 // Switch tabs within a section
-function switchTab(tab, section) {
+async function switchTab(tab, section) {
     if (section === 'voting') {
         // Update tab buttons
         votingSection.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
@@ -292,10 +292,10 @@ function switchTab(tab, section) {
         document.getElementById(`${tab}-tab`).classList.add('active');
 
         // Update data
-        if (tab === 'vote') updateVotingUI();
-        else if (tab === 'dashboard') updateDashboard();
-        else if (tab === 'progress') updateProgressDisplay();
-        else if (tab === 'standings') updateEmployeeStandings();
+        if (tab === 'vote') await updateVotingUI();
+        else if (tab === 'dashboard') await updateDashboard();
+        else if (tab === 'progress') await updateProgressDisplay();
+        else if (tab === 'standings') await updateEmployeeStandings();
 
     } else if (section === 'admin') {
         // Update tab buttons
@@ -403,9 +403,9 @@ async function handleNullVote() {
 }
 
 // Update progress display
-function updateProgressDisplay() {
+async function updateProgressDisplay() {
     progressContainer.innerHTML = '';
-    const allProgress = getAllVotingProgress();
+    const allProgress = await getAllVotingProgress();
 
     for (const date of JANUARY_2026_DATES) {
         const progress = allProgress[date];
@@ -429,13 +429,13 @@ function updateProgressDisplay() {
 }
 
 // Update dashboard with user's voting history
-function updateDashboard() {
+async function updateDashboard() {
     if (!currentUser) return;
 
     myVotesList.innerHTML = '';
 
     for (const date of JANUARY_2026_DATES) {
-        const vote = getUserVote(currentUser.id, date);
+        const vote = await getUserVote(currentUser.id, date);
         const item = document.createElement('div');
         item.className = 'vote-item';
 
@@ -758,8 +758,9 @@ async function updateEmployeeStandings() {
         if (standings.length > 0 && standings[0].wins > 0) {
             const winner = standings[0];
             const winnerVotes = totalVotes.find(v => v.id === winner.id)?.totalVotes || 0;
-            const totalEmployees = await getAllProgress();
-            const maxVotes = dailyWinners.length * totalEmployees.length;
+            const allProgress = await getAllVotingProgress();
+            const totalEmployees = Object.keys(allProgress).length > 0 ? allProgress[Object.keys(allProgress)[0]].total : 19;
+            const maxVotes = dailyWinners.length * totalEmployees;
 
             container.innerHTML = `
                 <div class="overall-winner-card">
