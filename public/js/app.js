@@ -288,12 +288,14 @@ function switchTab(tab, section) {
         document.getElementById('vote-tab').classList.remove('active');
         document.getElementById('dashboard-tab').classList.remove('active');
         document.getElementById('progress-tab').classList.remove('active');
+        document.getElementById('standings-tab').classList.remove('active');
         document.getElementById(`${tab}-tab`).classList.add('active');
 
         // Update data
         if (tab === 'vote') updateVotingUI();
         else if (tab === 'dashboard') updateDashboard();
         else if (tab === 'progress') updateProgressDisplay();
+        else if (tab === 'standings') updateEmployeeStandings();
 
     } else if (section === 'admin') {
         // Update tab buttons
@@ -736,6 +738,117 @@ async function handleExportData() {
     URL.revokeObjectURL(url);
 
     alert('Data exported successfully!');
+}
+
+// Update employee overall standings view
+async function updateEmployeeStandings() {
+    const container = document.getElementById('employee-standings');
+    if (!container) return;
+
+    try {
+        const data = await getPublicStandings();
+        const standings = data.standings || [];
+        const dailyWinners = data.dailyWinners || [];
+        const totalVotes = data.totalVotes || [];
+
+        // Clear container
+        container.innerHTML = '';
+
+        // 1. Overall Winner Card
+        if (standings.length > 0 && standings[0].wins > 0) {
+            const winner = standings[0];
+            const winnerVotes = totalVotes.find(v => v.id === winner.id)?.totalVotes || 0;
+            const totalEmployees = await getAllProgress();
+            const maxVotes = dailyWinners.length * totalEmployees.length;
+
+            container.innerHTML = `
+                <div class="overall-winner-card">
+                    <div class="trophy-icon">🏆</div>
+                    <div class="winner-info">
+                        <div class="winner-label">OVERALL WINNER</div>
+                        <div class="winner-name">${winner.name}</div>
+                        <div class="winner-stats">
+                            <div class="stat">
+                                <div class="stat-label">TOTAL WINS</div>
+                                <div class="stat-value">${winner.wins}</div>
+                            </div>
+                            <div class="stat">
+                                <div class="stat-label">TOTAL VOTES RECEIVED</div>
+                                <div class="stat-value">${winnerVotes} / ${maxVotes}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        } else {
+            container.innerHTML = '<p class="no-data">No winners declared yet.</p>';
+        }
+
+        // 2. Daily Winners Table
+        if (dailyWinners.length > 0) {
+            const dailyWinnersHTML = `
+                <div class="standings-section">
+                    <h3>Daily Winners</h3>
+                    <div class="daily-winners-table">
+                        ${dailyWinners.map(winner => `
+                            <div class="daily-winner-item">
+                                <div class="winner-date">${formatDateDisplay(winner.date)}</div>
+                                <div class="winner-employee">${winner.winnerName}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+            container.innerHTML += dailyWinnersHTML;
+        } else {
+            container.innerHTML += '<p class="no-data">No daily winners yet.</p>';
+        }
+
+        // 3. Wins Summary Table
+        const employeesWithWins = standings.filter(s => s.wins > 0);
+        if (employeesWithWins.length > 0) {
+            const winsHTML = `
+                <div class="standings-section">
+                    <h3>Wins Summary</h3>
+                    <div class="wins-summary-table">
+                        ${employeesWithWins.map((employee, index) => {
+                            const empVotes = totalVotes.find(v => v.id === employee.id)?.totalVotes || 0;
+                            let rankBadge = '';
+                            if (index === 0) rankBadge = '<div class="summary-rank gold">🥇</div>';
+                            else if (index === 1) rankBadge = '<div class="summary-rank silver">🥈</div>';
+                            else if (index === 2) rankBadge = '<div class="summary-rank bronze">🥉</div>';
+                            else rankBadge = `<div class="summary-rank">${index + 1}</div>`;
+
+                            return `
+                                <div class="wins-summary-item">
+                                    ${rankBadge}
+                                    <div class="summary-name">${employee.name}</div>
+                                    <div class="summary-stats">
+                                        ${employee.wins} wins | ${empVotes} total votes
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+            `;
+            container.innerHTML += winsHTML;
+        } else {
+            container.innerHTML += '<p class="no-data">No winners declared yet.</p>';
+        }
+
+    } catch (error) {
+        console.error('Error updating employee standings:', error);
+        container.innerHTML = '<p class="error-message">Failed to load standings. Please try again.</p>';
+    }
+}
+
+// Format date for display (e.g., "Mon, Jan 12")
+function formatDateDisplay(dateStr) {
+    const date = new Date(dateStr + 'T00:00:00');
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return `${days[date.getDay()]}, ${months[date.getMonth()]} ${date.getDate()}`;
 }
 
 // Initialize app when DOM is ready
